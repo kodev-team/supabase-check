@@ -1,0 +1,43 @@
+name: Wrong or missing result
+description: The check reported something that is fine, or missed a real problem.
+labels: [wrong-result]
+body:
+  - type: markdown
+    attributes:
+      value: "**Never paste real user data, keys, passwords or your project URL.** A small SQL setup on a throwaway database is enough."
+  - type: input
+    id: check
+    attributes:
+      label: Check ID
+      placeholder: K03
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What went wrong
+      options:
+        - It reported something that is fine (false positive)
+        - It missed a real problem (false negative)
+        - The finding or fix text is wrong or unclear
+    validations:
+      required: true
+  - type: textarea
+    id: sql
+    attributes:
+      label: SQL that recreates it
+      description: Tables, policies or functions only, with made-up names and no data.
+      render: sql
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: PostgreSQL version
+      description: Run `select version();`

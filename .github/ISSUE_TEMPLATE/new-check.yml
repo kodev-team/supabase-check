@@ -1,0 +1,21 @@
+name: Idea for a check
+description: A common Supabase mistake this check should look for.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: mistake
+    attributes:
+      label: The mistake
+      description: What goes wrong, and who can see or change what they should not.
+    validations:
+      required: true
+  - type: textarea
+    id: sql
+    attributes:
+      label: SQL example
+      description: A minimal table and policy that show it, with made-up names.
+      render: sql
+  - type: textarea
+    id: fix
+    attributes:
+      label: How to fix it

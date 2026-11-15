@@ -1,0 +1,31 @@
+name: Script error
+description: check.sql stopped with an error.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "**Never paste real user data, keys, passwords or your project URL.**"
+  - type: textarea
+    id: error
+    attributes:
+      label: Error message
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: PostgreSQL version
+      description: Run `select version();`
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where you ran it
+      options:
+        - Supabase SQL Editor
+        - psql or another client
+        - Other
+    validations:
+      required: true
