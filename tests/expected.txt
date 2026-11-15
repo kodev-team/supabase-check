@@ -1,0 +1,11 @@
+high|K01|public.profiles
+high|K03|public.posts · policy "anyone insert"
+high|K05|public.admin_notes · policy "admins"
+medium|K06|public.get_all_emails()
+medium|K07|public.mv_stats
+medium|K07|public.v_profiles
+medium|K09|storage bucket "avatars"
+low|K04|public.posts · policy "public read"
+low|K08|public.admin_notes · policy "admins"
+low|K08|public.posts · policy "own update"
+info|K02|public.secrets
