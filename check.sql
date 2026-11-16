@@ -1,4 +1,4 @@
--- KODEV Supabase self-check, v0.1
+-- KODEV Supabase self-check, v0.2
 -- Run it in the SQL Editor of YOUR OWN Supabase project (Dashboard -> SQL Editor -> New query -> paste -> Run).
 -- It only reads the database catalog. It changes nothing in your tables, policies or settings.
 -- It complements Supabase's Security Advisor; it does not replace a review of what your policies mean.
@@ -105,6 +105,7 @@ begin
            exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%') as pinned
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = any(exposed) and p.prosecdef and p.prokind = 'f'
+      and p.prorettype <> 'trigger'::regtype   -- trigger functions cannot be called through /rpc
       and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'))
   loop
     insert into kodev_findings values ('medium', 'K06', format('%I.%I(%s)', r.s, r.f, r.args),
@@ -146,6 +147,65 @@ begin
     insert into kodev_findings values ('low', 'K08', format('%I.%I · policy "%s"', r.s, r.t, r.p),
       'The policy calls auth.uid() or auth.jwt() for every row, which slows down large tables.',
       'Write (select auth.uid()) instead of auth.uid(), and index the column it is compared with.');
+  end loop;
+
+  ------------------------------------------------------------------------------------------------
+  -- K10 Users can choose their own role when they add a row (for example to a user_roles table)
+  for r in
+    select pol.schemaname as s, pol.tablename as t, pol.policyname as p, a.attname as col
+    from pg_policies pol
+    join pg_namespace n on n.nspname = pol.schemaname
+    join pg_class c on c.relnamespace = n.oid and c.relname = pol.tablename
+    join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+    where pol.schemaname = any(exposed) and pol.permissive = 'PERMISSIVE' and pol.cmd in ('INSERT', 'ALL')
+      and (pol.roles && array['public', 'anon', 'authenticated']::name[])
+      and a.attname ~* '^(role|roles|user_role|app_role|access_level|permission|permissions|is_admin)$'
+      and (has_column_privilege('authenticated', c.oid, a.attnum, 'INSERT')
+           or has_column_privilege('anon', c.oid, a.attnum, 'INSERT'))
+      -- a self-service insert (the row is the caller's own), whose check never looks at the role column
+      and coalesce(pol.with_check, pol.qual, '') ~* 'auth\.uid\(\)'
+      and coalesce(pol.with_check, pol.qual, '') !~* ('\m' || a.attname || '\M')
+      and coalesce(pol.with_check, pol.qual, '') !~* 'admin'
+  loop
+    insert into kodev_findings values ('high', 'K10', format('%I.%I · policy "%s"', r.s, r.t, r.p),
+      format('Users may add rows for themselves, and the policy never checks %s. Any logged-in user can insert a row with %s = ''admin'' (or any other value) and pass every check that reads it.', r.col, r.col),
+      format('Limit the check to the one value users may take themselves, for example with check ((select auth.uid()) = user_id and %s = ''member''), or grant roles only from server code or a security definer function that checks the real condition.', r.col));
+  end loop;
+
+  ------------------------------------------------------------------------------------------------
+  -- K11 Bank, identity or contact columns that everyone (or every logged-in user) can read
+  for r in
+    select pol.schemaname as s, pol.tablename as t, pol.policyname as p,
+           case when pol.roles && array['public', 'anon']::name[] then 'anyone, even without logging in'
+                else 'every logged-in user' end as who,
+           array_agg(a.attname::text order by a.attnum) filter (
+             where a.attname ~* '(^|_)(iban|bic|swift|account_number|bank_account|sort_code|routing_number|card_number|tax_id|vat_number|ssn|national_id|passport|passport_number|id_number)($|_)'
+           ) as money_cols,
+           array_agg(a.attname::text order by a.attnum) filter (
+             where a.attname ~* '(^|_)(email|phone|phone_number|mobile|address|street|postcode|zip|birth_date|date_of_birth|dob)($|_)'
+           ) as contact_cols
+    from pg_policies pol
+    join pg_namespace n on n.nspname = pol.schemaname
+    join pg_class c on c.relnamespace = n.oid and c.relname = pol.tablename
+    join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+    where pol.schemaname = any(exposed) and pol.permissive = 'PERMISSIVE' and pol.cmd in ('SELECT', 'ALL')
+      and (pol.roles && array['public', 'anon', 'authenticated']::name[])
+      and coalesce(trim(pol.qual), '') in ('true', '(true)')
+      and ((pol.roles && array['public', 'anon']::name[] and has_column_privilege('anon', c.oid, a.attnum, 'SELECT'))
+           or has_column_privilege('authenticated', c.oid, a.attnum, 'SELECT'))
+    group by pol.schemaname, pol.tablename, pol.policyname, pol.roles
+  loop
+    if r.money_cols is not null then
+      insert into kodev_findings values ('high', 'K11', format('%I.%I · policy "%s"', r.s, r.t, r.p),
+        format('The policy lets %s read every row, including bank or identity numbers (%s). Your screens may never show them, but anyone with your project''s public key can request these columns directly.',
+               r.who, array_to_string(r.money_cols, ', ')),
+        format('Move these columns to a table only the owner (and admins) can read, or revoke column access: revoke select on %I.%I from anon, authenticated; then grant select (<public columns>) on %I.%I to anon, authenticated;', r.s, r.t, r.s, r.t));
+    elsif r.contact_cols is not null then
+      insert into kodev_findings values ('medium', 'K11', format('%I.%I · policy "%s"', r.s, r.t, r.p),
+        format('The policy lets %s read every row, including personal contact data (%s), which can be collected in bulk through the API.',
+               r.who, array_to_string(r.contact_cols, ', ')),
+        'If these columns are not meant to be public, limit the policy to the owner or team, or grant select only on the public columns.');
+    end if;
   end loop;
 
   ------------------------------------------------------------------------------------------------
