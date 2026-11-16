@@ -1,11 +1,16 @@
 high|K01|public.profiles
 high|K03|public.posts · policy "anyone insert"
 high|K05|public.admin_notes · policy "admins"
+high|K10|public.user_roles · policy "add own role"
+high|K11|public.sellers · policy "sellers public"
 medium|K06|public.get_all_emails()
 medium|K07|public.mv_stats
 medium|K07|public.v_profiles
 medium|K09|storage bucket "avatars"
+medium|K11|public.members · policy "members visible"
 low|K04|public.posts · policy "public read"
+low|K04|public.sellers · policy "sellers public"
 low|K08|public.admin_notes · policy "admins"
 low|K08|public.posts · policy "own update"
+low|K08|public.user_roles · policy "admins manage roles"
 info|K02|public.secrets
