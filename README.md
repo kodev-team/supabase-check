@@ -22,7 +22,9 @@ the session ends.
 | K01 | high | Tables in `public` with Row Level Security off that `anon` or `authenticated` can reach |
 | K03 | high | Insert, update or delete policies for visitors or any logged-in user that allow every row (`true`) |
 | K05 | high | Policies that trust `user_metadata`, which every user can change for themselves |
-| K06 | medium | `SECURITY DEFINER` functions callable through `/rest/v1/rpc`, and whether their `search_path` is pinned |
+| K10 | high | Insert policies that let users add rows for themselves without checking the `role` column (a `user_roles` table where anyone can insert `admin`) |
+| K11 | high / medium | Read-all policies on tables with bank or identity numbers (high: `iban`, `account_number`, `sort_code`...) or contact data (medium: `email`, `phone`, `address`...) that the API can return |
+| K06 | medium | `SECURITY DEFINER` functions callable through `/rest/v1/rpc` (trigger functions are skipped), and whether their `search_path` is pinned |
 | K07 | medium | Views without `security_invoker` and materialized views readable through the API (both skip RLS) |
 | K09 | medium | Public storage buckets |
 | K04 | low | Policies that let anyone read every row (often intended, worth a second look) |
@@ -34,7 +36,7 @@ expose to the `exposed` list at the top of the script.
 
 ## Example output
 From the test project in [`tests/fixture.sql`](tests/fixture.sql), where every problem is planted on purpose
-(5 of its 11 rows; the `fix` column is shortened here):
+(5 of its 16 rows; the `fix` column is shortened here):
 
 | severity | check_id | object | finding | fix |
 |---|---|---|---|---|
