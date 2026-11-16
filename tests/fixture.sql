@@ -42,3 +42,17 @@ create view public.v_profiles as select * from public.profiles;
 create view public.v_orders with (security_invoker = true) as select * from public.orders;
 create materialized view public.mv_stats as select count(*) from public.orders;
 grant select on public.mv_stats to anon;
+-- K10: users add their own role rows, and the check ignores the role
+create type public.app_role as enum ('admin', 'member');
+create table public.user_roles (id int primary key, user_id uuid, role public.app_role not null);
+alter table public.user_roles enable row level security;
+create policy "add own role" on public.user_roles for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "admins manage roles" on public.user_roles for all to authenticated
+  using ((auth.jwt() ->> 'is_admin') = 'true') with check ((auth.jwt() ->> 'is_admin') = 'true');
+-- K11: bank numbers on a publicly readable table; contact data for every logged-in user
+create table public.sellers (id int primary key, name text, payout_iban text);
+alter table public.sellers enable row level security;
+create policy "sellers public" on public.sellers for select using (true);
+create table public.members (id int primary key, display_name text, email text);
+alter table public.members enable row level security;
+create policy "members visible" on public.members for select to authenticated using (true);
