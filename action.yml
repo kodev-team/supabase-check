@@ -14,9 +14,9 @@ inputs:
     required: false
     default: high
   supabase-cli-version:
-    description: Supabase CLI version for supabase/setup-cli.
+    description: Supabase CLI version from npm (a version or range, for example 3 or 3.2.0).
     required: false
-    default: "3.x"
+    default: "3"
 outputs:
   high:
     description: Number of high findings.
@@ -33,19 +33,19 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
-      with:
-        version: ${{ inputs.supabase-cli-version }}
     - name: Build a throwaway local database from your migrations
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        CLI: supabase@${{ inputs.supabase-cli-version }}
       run: |
+        # The CLI comes from npm (Node is on GitHub's runners), so no third-party action is needed.
         if [ ! -d supabase/migrations ]; then
           echo "No supabase/migrations folder in '${{ inputs.working-directory }}'. Set working-directory to the folder that holds supabase/."
           exit 2
         fi
-        [ -f supabase/config.toml ] || supabase init
-        if ! supabase db start; then
+        [ -f supabase/config.toml ] || npx --yes "$CLI" init
+        if ! npx --yes "$CLI" db start; then
           echo "::error title=supabase-check could not run::Your migrations did not build a fresh database (see the error above), so nothing was checked. A common cause in Lovable repos: a hand-named migration sorts before the Lovable migration it depends on; rename it with a later timestamp."
           exit 2
         fi
@@ -64,4 +64,6 @@ runs:
       if: always()
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: supabase stop --no-backup || true
+      env:
+        CLI: supabase@${{ inputs.supabase-cli-version }}
+      run: npx --yes "$CLI" stop --no-backup || true
