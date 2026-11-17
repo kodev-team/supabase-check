@@ -16,6 +16,33 @@ The script only reads the database catalog (tables, policies, functions, views, 
 users' rows and does not change anything. It creates one temporary table for its own results, which disappears when
 the session ends.
 
+## Check every push (GitHub Action)
+If your app's code is on GitHub with a `supabase/migrations` folder (for example a Lovable project with GitHub
+sync), the check can run on every push, so a change made by an AI tool is checked again before it ships. Add this
+file to your repository as `.github/workflows/supabase-check.yml`:
+
+```yaml
+name: supabase-check
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: kodev-team/supabase-check@v0.3.0
+        # with:
+        #   working-directory: .   # the folder that holds supabase/
+        #   fail-on: high          # high, medium, low, info or never
+```
+
+On each run it starts a throwaway local database on GitHub's runner from your migrations (Supabase CLI,
+`supabase db start`), runs `check.sql` against it, writes the findings to the run's summary page and fails the job
+when there is a finding at `fail-on` or above. It never connects to your live project and needs no keys or
+secrets. If your migrations do not build a fresh database, the job fails with "could not run": nothing was
+checked, which is different from nothing found.
+
 ## What it checks
 | ID | Severity | What it looks for |
 |---|---|---|
@@ -58,7 +85,9 @@ run both.
 
 ## Tests
 `tests/run.sh` builds two throwaway databases on a local PostgreSQL 15+: one with every problem planted, one clean.
-It passes when every planted problem is found and the clean one returns nothing. CI runs it on every push.
+It passes when every planted problem is found and the clean one returns nothing. CI runs it on every push, and
+also runs the GitHub Action on two projects in `tests/action/` shaped like Lovable exports: the one with planted
+problems must fail, the fixed one must pass.
 See [CONTRIBUTING.md](CONTRIBUTING.md) to add a check, and [CHANGELOG.md](CHANGELOG.md) for changes.
 
 ## About

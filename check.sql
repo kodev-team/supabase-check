@@ -1,4 +1,4 @@
--- KODEV Supabase self-check, v0.2
+-- KODEV Supabase self-check, v0.3
 -- Run it in the SQL Editor of YOUR OWN Supabase project (Dashboard -> SQL Editor -> New query -> paste -> Run).
 -- It only reads the database catalog. It changes nothing in your tables, policies or settings.
 -- It complements Supabase's Security Advisor; it does not replace a review of what your policies mean.
