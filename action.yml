@@ -1,0 +1,67 @@
+name: supabase-check
+description: Read-only check of the database your Supabase migrations build, for common data-access mistakes (RLS, policies, functions, views, buckets).
+author: KODEV
+branding:
+  icon: check-circle
+  color: green
+inputs:
+  working-directory:
+    description: Folder that holds the supabase/ folder (migrations, and config.toml if you have one).
+    required: false
+    default: "."
+  fail-on:
+    description: Lowest severity that fails the job (high, medium, low, info), or never to only report.
+    required: false
+    default: high
+  supabase-cli-version:
+    description: Supabase CLI version for supabase/setup-cli.
+    required: false
+    default: "3.x"
+outputs:
+  high:
+    description: Number of high findings.
+    value: ${{ steps.check.outputs.high }}
+  medium:
+    description: Number of medium findings.
+    value: ${{ steps.check.outputs.medium }}
+  low:
+    description: Number of low findings.
+    value: ${{ steps.check.outputs.low }}
+  info:
+    description: Number of info findings.
+    value: ${{ steps.check.outputs.info }}
+runs:
+  using: composite
+  steps:
+    - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+      with:
+        version: ${{ inputs.supabase-cli-version }}
+    - name: Build a throwaway local database from your migrations
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [ ! -d supabase/migrations ]; then
+          echo "No supabase/migrations folder in '${{ inputs.working-directory }}'. Set working-directory to the folder that holds supabase/."
+          exit 2
+        fi
+        [ -f supabase/config.toml ] || supabase init
+        if ! supabase db start; then
+          echo "::error title=supabase-check could not run::Your migrations did not build a fresh database (see the error above), so nothing was checked. A common cause in Lovable repos: a hand-named migration sorts before the Lovable migration it depends on; rename it with a later timestamp."
+          exit 2
+        fi
+    - name: Run check.sql
+      id: check
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        port=$(sed -n '/^\[db\]/,/^\[/{s/^port *= *\([0-9]*\).*/\1/p}' supabase/config.toml | head -1)
+        export DB_URL="postgresql://postgres:postgres@127.0.0.1:${port:-54322}/postgres"
+        command -v psql >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }
+        bash "${{ github.action_path }}/scripts/ci-run.sh"
+    - name: Stop the local database
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: supabase stop --no-backup || true

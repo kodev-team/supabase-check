@@ -3,6 +3,13 @@
 All notable changes to this project are listed here. Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+- GitHub Action (`uses: kodev-team/supabase-check@v0.3.0`): builds a throwaway local database from the repo's
+  `supabase/migrations` with the Supabase CLI, runs `check.sql`, writes the findings to the run summary and fails
+  the job at a chosen severity. Never connects to a live project; needs no secrets. Reports "could not run" when
+  the migrations do not build, never a pass.
+- `scripts/ci-run.sh`: the same report and exit codes for any database URL (0 nothing at the threshold, 1 findings,
+  2 could not run).
+- Tests: two projects shaped like Lovable exports in `tests/action/`, run through the action in CI.
 
 ## [0.2.0] - 2026-11-16
 - New check K10 (high): insert policies that let users add rows for themselves without checking the role column,
