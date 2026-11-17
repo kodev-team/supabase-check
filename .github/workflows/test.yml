@@ -28,3 +28,30 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: bash tests/run.sh
+  action:
+    # Runs the GitHub Action on two projects shaped like Lovable exports:
+    # planted problems must fail the job, the fixed project must pass.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Project with planted problems
+        id: bad
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: tests/action/lovable-bad
+      - name: Fixed project, without config.toml
+        id: clean
+        uses: ./
+        with:
+          working-directory: tests/action/lovable-clean
+          fail-on: info
+      - name: Compare with the expected result
+        env:
+          BAD: ${{ steps.bad.outcome }} ${{ steps.bad.outputs.high }} ${{ steps.bad.outputs.medium }} ${{ steps.bad.outputs.low }} ${{ steps.bad.outputs.info }}
+          CLEAN: ${{ steps.clean.outcome }} ${{ steps.clean.outputs.high }} ${{ steps.clean.outputs.medium }} ${{ steps.clean.outputs.low }} ${{ steps.clean.outputs.info }}
+        run: |
+          echo "planted: $BAD"; echo "fixed: $CLEAN"
+          [ "$BAD" = "failure 2 3 4 0" ] || { echo "FAIL: expected 'failure 2 3 4 0' for the planted project"; exit 1; }
+          [ "$CLEAN" = "success 0 0 0 0" ] || { echo "FAIL: expected 'success 0 0 0 0' for the fixed project"; exit 1; }
+          echo "PASS: planted project fails with 2 high, fixed project passes with nothing found"
